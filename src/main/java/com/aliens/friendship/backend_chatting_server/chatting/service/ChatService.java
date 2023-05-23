@@ -20,6 +20,10 @@ public class ChatService {
 
     private final ChatRepository chatRepository;
 
+    public void addChat(ChatRequestDto chatRequestDto) {
+        chatRepository.save(chatRequestDto.toEntity());
+    }
+
     public List<ChatResponseDto> getAllChatsByRoomId(Long roomId) {
         return chatRepository.findAllByRoomId(roomId).stream()
                 .sorted(Comparator.comparing(Chat::getChatId))
@@ -31,19 +35,14 @@ public class ChatService {
         return chatRepository.findAllByRoomIdAndReceiverIdAndReadFalse(roomId, currentMemberId).size();
     }
 
-    //fcm을 통해 메시지를 축적하게된다면.. 녀석이 필요 없지 않을까..라는 생각이 듭니다.
-    public ChatResponseDto getLastNotReadChatByRoomId(Long roomId) {
-        List<ChatResponseDto> chats = getAllChatsByRoomId(roomId);
-        return chats.get(chats.size()-1);
-    }
 
-    public void changeChatsAllRead(Long roomId, Long currentMemberId ) {
+    public void changeAllChatOfRoomToReadByCurrentMemberIdAndRoomId(Long roomId, Long currentMemberId ) {
         List<Chat> chats = chatRepository.findAllByRoomIdAndReceiverIdAndReadFalse(roomId, currentMemberId);
         chats.forEach(Chat::changeReadState);
         chatRepository.saveAll(chats);
     }
 
-    public void changeChatToRead(Long chatId) {
+    public void changeChatToReadByChatId(Long chatId) {
         Chat oneChat = chatRepository.findByChatId(chatId);
         oneChat.changeReadState();
         chatRepository.save(oneChat);
@@ -53,10 +52,6 @@ public class ChatService {
         return roomIds.stream()
                 .map(this::getAllChatsByRoomId)
                 .collect(Collectors.toList());
-    }
-
-    public void addChatLog(ChatRequestDto chatRequestDto) {
-        chatRepository.save(chatRequestDto.toEntity());
     }
 
     // 내부 조건에 따른 필터링과 DB쿼리문의 성능차이 실험을 위한 코드
