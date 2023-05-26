@@ -4,8 +4,6 @@ import com.aliens.friendship.backend_chatting_server.chatting.domain.Chat;
 import com.aliens.friendship.backend_chatting_server.chatting.domain.ChatMessageCategory;
 import lombok.*;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
 
 @Data
 @AllArgsConstructor
@@ -20,7 +18,7 @@ public class ChatResponseDto {
 
     private Long chatId;
     private String createTime;
-    private boolean read;
+    private String read;
 
     /* Entity -> Dto*/
     public ChatResponseDto(Chat chat) {
@@ -31,17 +29,6 @@ public class ChatResponseDto {
         this.messageCategory = chat.getMessageCategory();
         this.chatId = chat.getChatId();
         this.createTime = chat.getCreateTime().toString();
-        this.read = chat.isRead();
-    }
-
-    /* RequestDto -> ResponseDto*/
-    public ChatResponseDto(ChatRequestDto requestDto) {
-        this.roomId = requestDto.getRoomId();
-        this.senderId = requestDto.getSenderId();
-        this.receiverId = requestDto.getReceiverId();
-        this.message = requestDto.getMessage();
-        this.messageCategory = requestDto.getMessageCategory();
-        this.createTime = LocalDateTime.now().toString();
-        this.read = false;
+        this.read = chat.isRead() ? "true" : "false";
     }
 }
