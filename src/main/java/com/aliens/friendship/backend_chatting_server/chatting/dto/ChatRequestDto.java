@@ -13,7 +13,6 @@ import java.time.Instant;
 public class ChatRequestDto {
 
     private Long roomId;
-    private Long chatId;
     private Long senderId;
     private Long receiverId;
     private String message;
