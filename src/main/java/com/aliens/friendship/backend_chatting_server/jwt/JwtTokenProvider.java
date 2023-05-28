@@ -3,6 +3,7 @@ package com.aliens.friendship.backend_chatting_server.jwt;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -16,12 +17,12 @@ import java.util.stream.IntStream;
 @Component
 public class JwtTokenProvider {
 
-
-    private final String secret = "26a3552eecb4e92e2d0fb9d1a33b7992fd351c4d3cd52a3a80f88925e797ad2c5e84b4617eecda74cd21d8667a102fcc4b05734f79d809c4bc9f2f181d692971";
+    @Value("${spring.jwt.secret}")
+    private String secret;
     long tokenValidityInSeconds =  	172800;
 
 
-    private String generateToken(Long memberId,List<Long> roomIds ) {
+    public String generateToken(Long memberId,List<Long> roomIds ) {
         long now = (new Date()).getTime();
         Date validity = new Date(now + tokenValidityInSeconds);
 
