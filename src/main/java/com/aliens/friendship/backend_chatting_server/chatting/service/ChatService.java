@@ -25,18 +25,20 @@ public class ChatService {
     private final ChatRepository chatRepository;
 
     //채팅 저장
-    public Chat addChat(ChatRequestDto chatRequestDto) {
-        return chatRepository.save(chatRequestDto.toEntity());
+    public ChatResponseDto addChat(ChatRequestDto chatRequestDto) {
+        Chat singleChat = chatRepository.save(chatRequestDto.toEntity());
+        return new ChatResponseDto(singleChat);
     }
 
 
     // 단일 읽음처리
-    public void changeChatToReadByChatId(Long chatId) {
-        Optional<Chat> oneChat = chatRepository.findByChatId(chatId);
-        oneChat.ifPresent(t->{
+    public ChatResponseDto changeChatToReadByChatId(Long chatId) {
+        Optional<Chat> singleChat = chatRepository.findByChatId(chatId);
+        singleChat.ifPresent(t -> {
             t.changeReadState();
             this.chatRepository.save(t);
         });
+        return new ChatResponseDto(chatRepository.findByChatId(chatId).get());
     }
 
 
@@ -53,7 +55,6 @@ public class ChatService {
                 })
                 .collect(Collectors.toList());
     }
-
 
 
     // 채팅방 하나의 최근 채팅 최대 100개 반환

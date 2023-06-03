@@ -3,9 +3,9 @@ package com.aliens.friendship.backend_chatting_server.chatting.controller;
 import com.aliens.friendship.backend_chatting_server.chatting.dto.ChatRequestDto;
 import com.aliens.friendship.backend_chatting_server.chatting.dto.ChatResponseDto;
 import com.aliens.friendship.backend_chatting_server.chatting.dto.NewChatWithCountOfUnreadChats;
+import com.aliens.friendship.backend_chatting_server.fcm.service.FCMService;
 import com.aliens.friendship.backend_chatting_server.jwt.JwtTokenProvider;
 import com.aliens.friendship.backend_chatting_server.chatting.service.ChatService;
-import com.google.api.Http;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,26 +17,26 @@ import javax.validation.Valid;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class ChatController {
 
     private final SimpMessageSendingOperations msgTemplate;
     private final ChatService chatService;
     private final JwtTokenProvider jwtTokenProvider;
+    private final FCMService FCMService;
 
     //채팅 전송 및 저장
     @MessageMapping("/chat/msg")
-    public void sendMessage(@RequestHeader("ChattingToken") String jwtToken,@RequestBody @Valid ChatRequestDto chatRequestDto) {
+    public void sendMessage(@RequestHeader("ChattingToken") String jwtToken, @RequestBody @Valid ChatRequestDto chatRequestDto) {
         jwtTokenProvider.validateToken(jwtToken);
-        chatService.addChat(chatRequestDto);
-        // 비동기적으로 FCM 서비스 코드 추가 필요
+        FCMService.sendSingleChatToReceiverByToken(chatService.addChat(chatRequestDto));
     }
 
     @MessageMapping("/chat/msg/{chatId}")
-    public void changeReadStatus(@RequestHeader("ChattingToken") String jwtToken,@PathVariable Long chatId) {
+    public void changeReadStatus(@RequestHeader("ChattingToken") String jwtToken, @PathVariable Long chatId) {
         jwtTokenProvider.validateToken(jwtToken);
-        chatService.changeChatToReadByChatId(chatId);
+        FCMService.sendReadChatToSenderByToken(chatService.changeChatToReadByChatId(chatId));
     }
 
     // 현재 사용자의 jwt 기반으로 룸들의 새로운 채팅과 안읽은 채팅개수를 반환시켜준다 .
@@ -45,7 +45,7 @@ public class ChatController {
         jwtTokenProvider.validateToken(jwtToken);
         List<Long> roomIdsFromToken = jwtTokenProvider.getRoomIdsFromToken(jwtToken);
         Long currentMemberId = jwtTokenProvider.getCurrentMemberIdFromToken(jwtToken);
-        return new ResponseEntity<>(chatService.getNewChatAndNotReadCountOfChatInEachRoomsByRoomIds(currentMemberId,roomIdsFromToken), HttpStatus.OK);
+        return new ResponseEntity<>(chatService.getNewChatAndNotReadCountOfChatInEachRoomsByRoomIds(currentMemberId, roomIdsFromToken), HttpStatus.OK);
     }
 
     //현재 사용자의 jwt 안에 RoomId와 현재 얻고자하는 roomId를 비교하여
@@ -61,6 +61,5 @@ public class ChatController {
                 ? ResponseEntity.ok(chatService.getHundredChatsByRoomId(roomId))
                 : ResponseEntity.badRequest().build();
     }
-
 
 }
