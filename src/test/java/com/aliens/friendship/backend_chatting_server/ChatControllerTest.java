@@ -70,7 +70,7 @@ public class ChatControllerTest {
                 (jwtToken)).thenReturn(currentMemberId);
         when(chatService.getNewChatAndNotReadCountOfChatInEachRoomsByRoomIds(currentMemberId, roomIdsFromToken)).thenReturn(expectedResponse);
 
-        mockMvc.perform(get("/api/chat")
+        mockMvc.perform(get("/api/v1/chat")
                         .header("ChattingToken", jwtToken))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -113,7 +113,7 @@ public class ChatControllerTest {
         when(jwtTokenProvider.getRoomIdsFromToken(jwtToken)).thenReturn(roomIdsFromToken);
         when(chatService.getHundredChatsByRoomId(roomId)).thenReturn(expectedResponse);
 
-        mockMvc.perform(get("/api/chat/{roomId}", roomId)
+        mockMvc.perform(get("/api/v1/chat/{roomId}", roomId)
                         .header("ChattingToken", jwtToken))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))

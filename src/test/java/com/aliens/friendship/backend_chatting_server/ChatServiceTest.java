@@ -45,7 +45,7 @@ public class ChatServiceTest {
 
         when(chatRepository.save(any(Chat.class))).thenReturn(savedChat);
 
-        Chat result = chatService.addChat(chatRequestDto);
+        ChatResponseDto result = chatService.addChat(chatRequestDto);
 
         assertNotNull(result);
     }
@@ -67,8 +67,9 @@ public class ChatServiceTest {
                 .build();
         when(chatRepository.findByChatId(chatId)).thenReturn(Optional.of(chat));
 
-        chatService.changeChatToReadByChatId(chatId);
+        ChatResponseDto result = chatService.changeChatToReadByChatId(chatId);
 
+        assertNotNull(result);
         verify(chatRepository, times(1)).save(chat);
     }
 
@@ -120,7 +121,7 @@ public class ChatServiceTest {
                 .read(false)
                 .message("안녕")
                 .build();
-        List<Chat> chats = Arrays.asList(chat1,chat2,chat3);
+        List<Chat> chats = Arrays.asList(chat1, chat2, chat3);
         when(chatRepository.findHundredChatsByRoomId(roomId)).thenReturn(Optional.of(chats));
 
         List<ChatResponseDto> result = chatService.getHundredChatsByRoomId(roomId);
