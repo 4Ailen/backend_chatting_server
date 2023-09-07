@@ -1,21 +1,26 @@
 package com.aliens.friendship.backend_chatting_server.chatting.service;
 
-import com.aliens.friendship.backend_chatting_server.chatting.domain.Chat;
-import com.aliens.friendship.backend_chatting_server.chatting.domain.ChatMessageCategory;
-import com.aliens.friendship.backend_chatting_server.chatting.dto.ChatRequestDto;
-import com.aliens.friendship.backend_chatting_server.chatting.dto.ChatResponseDto;
-import com.aliens.friendship.backend_chatting_server.chatting.dto.NewChatWithCountOfUnreadChats;
-import com.aliens.friendship.backend_chatting_server.chatting.repository.ChatRepository;
+import com.aliens.friendship.backend_chatting_server.chatting.dto.response.ChatSendResponse;
+import com.aliens.friendship.backend_chatting_server.chatting.dto.response.ChatSummariesResponse;
+import com.aliens.friendship.backend_chatting_server.db.chat.entity.ChatEntity;
+import com.aliens.friendship.backend_chatting_server.global.util.jwt.JwtTokenUtil;
+import com.aliens.friendship.backend_chatting_server.chatting.converter.ChatConverter;
+import com.aliens.friendship.backend_chatting_server.websocket.dto.request.ChatSendRequest;
+import com.aliens.friendship.backend_chatting_server.db.chat.repository.ChatRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -24,55 +29,93 @@ public class ChatService {
 
     private final ChatRepository chatRepository;
 
-    //채팅 저장
-    public ChatResponseDto addChat(ChatRequestDto chatRequestDto) {
-        Chat singleChat = chatRepository.save(chatRequestDto.toEntity());
-        return new ChatResponseDto(singleChat);
+    private final ChatConverter chatConverter;
+
+    private final MongoTemplate mongoTemplate;
+
+    private final MongoOperations mongoOperations;
+
+    private final JwtTokenUtil jwtTokenUtil;
+
+
+
+    public ChatSendResponse saveChat(ChatSendRequest chatSendRequest) {
+        ChatEntity singleChatEntity = chatRepository.save(chatConverter.toChatEntityWithRequest(chatSendRequest));
+        return chatConverter.toChatSendResponseWithEntity(singleChatEntity);
     }
 
-
-    // 단일 읽음처리
-    public ChatResponseDto changeChatToReadByChatId(Long chatId) {
-        Optional<Chat> singleChat = chatRepository.findByChatId(chatId);
-        singleChat.ifPresent(t -> {
-            t.changeReadState();
-            this.chatRepository.save(t);
-        });
-        return new ChatResponseDto(chatRepository.findByChatId(chatId).get());
-    }
-
-
-    //각 채팅방의 가장 최근 채팅과 안읽은 채팅개수 반환
-    public List<NewChatWithCountOfUnreadChats> getNewChatAndNotReadCountOfChatInEachRoomsByRoomIds(Long currentMemberId, List<Long> roomIds) {
-        return roomIds.stream()
-                .map(roomId -> {
-                    NewChatWithCountOfUnreadChats dto = new NewChatWithCountOfUnreadChats();
-                    Optional<Chat> oneChat = chatRepository.findNewOneChatByRoomId(roomId);
-                    dto.setRoomId(roomId);
-                    dto.setNewChat(oneChat.map(Chat::getMessage).orElse("채팅을 시작하세요!"));
-                    dto.setCountOfUnreadChats(chatRepository.countUnreadChatsByRoomIdAndReceiverId(roomId, currentMemberId));
-                    return dto;
-                })
-                .collect(Collectors.toList());
-    }
-
-
-    // 채팅방 하나의 최근 채팅 최대 100개 반환
-    public List<ChatResponseDto> getHundredChatsByRoomId(Long roomId) {
-        Optional<List<Chat>> chats = chatRepository.findHundredChatsByRoomId(roomId);
-        List<ChatResponseDto> result = new ArrayList<>();
-
-        chats.ifPresentOrElse(
-                c -> c.stream()
-                        .map(ChatResponseDto::new)
-                        .forEach(result::add),
-                () -> {
-                    Chat firstChat = new Chat(0L, 0L, 0L, 0L, "채팅을 시작하세요!", ChatMessageCategory.ALL_NOTICE_MESSAGE, Instant.now(), true);
-                    result.add(new ChatResponseDto(firstChat));
-                }
-        );
-
+    public List<ChatSendResponse> getUnreadChatsByRoomId(Long roomId) {
+        Optional<List<ChatEntity>> chats = chatRepository.findUnreadChatsByRoomId(roomId);
+        List<ChatSendResponse> result = new ArrayList<>();
+        for (ChatEntity chatEntity : chats.orElse(new ArrayList<>())) {
+            result.add(chatConverter.toChatSendResponseWithEntity(chatEntity));
+        }
         return result;
     }
 
+    public Long updateReadStateByRoomId(Long roomId, Long partnerId) {
+        Query query = new Query(Criteria.where("roomId").is(roomId).and("senderId").is(partnerId));
+        Update update = new Update().set("unreadCount", 0);
+        mongoTemplate.updateMulti(query, update, ChatEntity.class);
+        return roomId;
+    }
+
+    public void updateReadStateByChatId(ChatEntity chatEntity) {
+        Query query = new Query(Criteria.where("_id").is(chatEntity.getChatId()));
+        Update update = new Update().set("unreadCount", 0);
+        mongoTemplate.updateFirst(query, update, ChatEntity.class);
+    }
+
+    public ChatSummariesResponse getChatSummaries(List<Long> roomIds, Long memberId) {
+        ChatSummariesResponse chatSummariesResponse = new ChatSummariesResponse();
+        for(Long roomId: roomIds){
+            String lastChatContent = chatRepository.findNewOneChatByRoomId(roomId).isPresent() ? chatRepository.findNewOneChatByRoomId(roomId).get().getChatContent() : "채팅을 시작하세요!";
+            String lastChatTime = chatRepository.findNewOneChatByRoomId(roomId).isPresent() ? chatRepository.findNewOneChatByRoomId(roomId).get().getSendTime() : "기록 없음";
+            Long numberOfUnreadChats = getNumberOfUnreadChats(roomId,memberId);
+
+            ChatSummariesResponse.ChatSummary chatSummary = ChatSummariesResponse.ChatSummary.builder()
+                    .roomId(roomId)
+                    .lastChatContent(lastChatContent)
+                    .lastChatTime(lastChatTime)
+                    .numberOfUnreadChat(numberOfUnreadChats)
+                    .build();
+            chatSummariesResponse.addChatSummary(chatSummary);
+        }
+        return chatSummariesResponse;
+    }
+
+    public Long getNumberOfUnreadChats(Long roomId, Long memberId) {
+        Query query = new Query(Criteria.where("roomId").is(roomId)
+                .and("unreadCount").is(1)
+                .and("receiverId").is(memberId));
+        long count = mongoOperations.count(query, ChatEntity.class);
+        return count;
+    }
+
+    public ChatEntity getChatEntity(Long chatId) {
+        return chatRepository.findByChatId(chatId).get();
+    }
+
+    public void validateRoomId(Long roomIdFromPayload, List<Long> roomIds) throws JsonProcessingException {
+        if (!roomIds.contains(roomIdFromPayload)) {
+            throw new IllegalArgumentException("roomId가 일치하지 않습니다.");
+        }
+    }
+
+//    public Object getUnreadChatsByRoomId(Long roomId, Long lastPartnerChatId, Long lastMyChatId, Long partnerId, Long memberId) {
+//        // 상대의 채팅 아이디중 가장 최근 값 이후의 채팅이 있다면 가져온다.
+//        // 내 채팅 아이디중 가장 최근 값 이후의 채팅이 있다면 가져온다.
+//        // 각각의 배열로 넣어 반환한다.
+//        List<ChatEntity> partnerChats = chatRepository.findNextChatsByRoomId(roomId, lastPartnerChatId,partnerId).orElse(new ArrayList<>());
+//        List<ChatEntity> myChats = chatRepository.findNextChatsByRoomId(roomId, lastMyChatId,memberId).orElse(new ArrayList<>());
+//        List<ChatSendResponse> partnerChatSendResponses = new ArrayList<>();
+//        List<ChatSendResponse> myChatSendResponses = new ArrayList<>();
+//        for (ChatEntity chatEntity : partnerChats) {
+//            partnerChatSendResponses.add(chatConverter.toChatSendResponseWithEntity(chatEntity));
+//        }
+//        for (ChatEntity chatEntity : myChats) {
+//            myChatSendResponses.add(chatConverter.toChatSendResponseWithEntity(chatEntity));
+//        }
+//        return new Object[]{partnerChatSendResponses, myChatSendResponses};
+//    }
 }
