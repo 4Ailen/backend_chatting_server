@@ -1,5 +1,4 @@
-package com.aliens.friendship.backend_chatting_server.chatting.dto;
-
+package com.aliens.friendship.backend_chatting_server.websocket.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,8 +9,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
-public class NewChatWithCountOfUnreadChats {
+public class BulkReadWebsocketResponse {
+    private String requestId;
     private Long roomId;
-    private String newChat;
-    private Long countOfUnreadChats;
+    private String status;
 }
