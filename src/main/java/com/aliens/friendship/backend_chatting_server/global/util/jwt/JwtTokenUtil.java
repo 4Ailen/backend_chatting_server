@@ -1,4 +1,4 @@
-package com.aliens.friendship.backend_chatting_server.jwt;
+package com.aliens.friendship.backend_chatting_server.global.util.jwt;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -8,49 +8,25 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
-import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Slf4j
 @Component
-public class JwtTokenProvider {
+public class JwtTokenUtil {
 
-    @Value("${spring.jwt.secret}")
+    @Value("${spring.jwt.chatting-access-token-secret-key}")
     private String secret;
-    long tokenValidityInSeconds =  	172800;
-
-
-    public String generateToken(Long memberId,List<Long> roomIds ) {
-        long now = (new Date()).getTime();
-        Date validity = new Date(now + tokenValidityInSeconds);
-
-        Claims claims = Jwts.claims();
-        claims.put("memberId",memberId);
-        // 매칭된 인원에 수에 대해서 가변적이기 때문에 다음과 같이 숫자를 기반으로 추가
-        for(int i = 0 ; i < roomIds.size(); i ++ ){
-            claims.put(String.valueOf(i),roomIds.get(i));
-        }
-
-        return Jwts.builder()
-                .setClaims(claims)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(validity)
-                .signWith(getSigningKey(secret), SignatureAlgorithm.HS256)
-                .compact();
-    }
-
 
     public Long getCurrentMemberIdFromToken(String token) {
         return extractAllClaims(token).get("memberId", Long.class);
     }
 
     public List<Long> getRoomIdsFromToken(String token) {
-        Claims claim = extractAllClaims(token);
-
-        return IntStream.range(1, claim.size())
-                .mapToObj(i -> claim.get(String.valueOf(i), Long.class))
+        Claims claims = extractAllClaims(token);
+        return IntStream.range(0, claims.size() - 3)
+                .mapToObj(i -> claims.get(String.valueOf(i), Long.class))
                 .collect(Collectors.toList());
     }
 
@@ -82,5 +58,4 @@ public class JwtTokenProvider {
         byte[] keyBytes = secretKey.getBytes(StandardCharsets.UTF_8);
         return Keys.hmacShaKeyFor(keyBytes);
         }
-
 }
